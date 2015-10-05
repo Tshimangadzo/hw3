@@ -41,15 +41,15 @@ struct s_block {
 void split_block (s_block_ptr b, size_t s);
 
 /* Try fusing block with neighbors */
-static s_block_ptr fusion(s_block_ptr b);
+s_block_ptr fusion(s_block_ptr b);
 
 /* Get the block from addr */
-static s_block_ptr get_block (void *p);
+s_block_ptr get_block (void *p);
 
 /* Add a new block at the of heap,
  * return NULL if things go wrong
  */
-static s_block_ptr extend_heap (size_t s);
+s_block_ptr extend_heap (size_t s);
 
 
 #ifdef __cplusplus

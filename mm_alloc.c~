@@ -1,37 +1,25 @@
-/*
- * mm_alloc.c
- *
- * Stub implementations of the mm_* routines. Remove this comment and provide
- * a summary of your allocator's design here.
- */
 #include "mm_alloc.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <assert.h>
-/* Your final implementation should comment out this macro. */
-/* #define MM_USE_STUBS */
 #define ASSERT     assert
 #define align4(x)  (((((x)-1)>>2)<<2)+4)
-#define TRUE 1
-#define FALSE 0
                                                     
 s_block_ptr base = NULL;            
 s_block_ptr last;       
-static s_block_ptr find_block(size_t size)    
+s_block_ptr find_block(size_t size)    
 {  
-  s_block_ptr p = base;
-  for (; p != NULL; p = p->next)            
+  s_block_ptr bas = base;
+  for (; bas != NULL; bas = bas->next)            
    {
-      last = p;
-      if (p->free && p->size >= size)         
-          return p;                           
+      last = bas;
+      if (bas->free && bas->size >= size)         
+          return bas;                           
    }
   return NULL;                                
 }
-/* Invoke sbrk to extend break point */
-static s_block_ptr extend_heap(size_t s)                
+s_block_ptr extend_heap(size_t s)                
 {    
-    /* Current break is address of the new block*/
     s_block_ptr new_block;                    
     new_block = (s_block_ptr)sbrk(0); 
       int sb = (int)sbrk(s + S_BLOCK_SIZE);                         
@@ -41,11 +29,11 @@ static s_block_ptr extend_heap(size_t s)
       }                                                         
     new_block->size = s;                                  
     new_block->ptr  = new_block->data;                       
-    new_block->free = TRUE;                                 
+    new_block->free = 1;                                 
      
-    if (base == NULL) /* heap is empty   */                      
+    if (base == NULL)                     
     {
-        new_block->prev = new_block->prev = NULL; 
+        new_block->prev = NULL; 
         base = new_block;                         
     }
     else 
@@ -55,7 +43,7 @@ static s_block_ptr extend_heap(size_t s)
         new_block->prev = last;                    
         last->next = new_block;                   
     }
-    printf("%x %x %d\n", new_block, new_block->ptr, new_block->size); 
+    printf("%x %x %d\n", new_block , new_block->ptr, new_block->size); 
     return new_block;                             
 }
 
@@ -64,16 +52,11 @@ void split_block(s_block_ptr p, size_t new_size)
     s_block_ptr new_block = NULL;              
     if (p->size >= new_size + S_BLOCK_SIZE + 4)
     {
-        /* Shorten the block'size to new_size */
         p->size = new_size;  
-
-        /* Define a new block on the address p->data+size*/
         new_block = (s_block_ptr)(p->data + new_size);
         new_block->size = p->size - new_size - S_BLOCK_SIZE;
         new_block->ptr = new_block->data;
-        new_block->free = TRUE;
-
-        /* Insert the new block after block p */
+        new_block->free = 1;
         new_block->next = p->next;
         new_block->prev = p;
         if (p->next)
@@ -81,30 +64,24 @@ void split_block(s_block_ptr p, size_t new_size)
         p->next = new_block;
     }
 
-    //return new_block;
 }
 
-static s_block_ptr fusion_block(s_block_ptr pb)
+s_block_ptr fusion_block(s_block_ptr block)
 {
-    ASSERT(pb->free == TRUE); 
-
-    /* If p's next block exists and p's block is also free, 
-     * then merge p and p's next block.                    */
-    if (pb->next && pb->next->free) 
+    ASSERT(block->free == 1); 
+    if (block->next && block->next->free) 
     {
-      pb->size = pb->size + BLOCK_SIZE + pb->next->size;
-      if (pb->next->next)
-        pb->next->next->prev = pb;
-      pb->next = pb->next->next; 		
+      block->size = block->size + BLOCK_SIZE + block->next->size;
+      if (block->next->next)
+        block->next->next->prev = block;
+      block->next = block->next->next; 		
     }
 
-    return (pb);
+    return (block);
 }
 
-
-static s_block_ptr get_block(void *p)
+s_block_ptr get_block(void *p)
 {
-    /* If p is a valid block address, convert it to a s_block_ptr */
     char *tmp;
     tmp = (char*)p;
     return (s_block_ptr)(tmp - BLOCK_SIZE);
@@ -112,14 +89,14 @@ static s_block_ptr get_block(void *p)
 
 static int is_valid_block_addr (void *p)
 {
-   s_block_ptr pb = get_block(p);
+   s_block_ptr block = get_block(p);
    if (base)
    {
      if(p > base && p < sbrk(0))
-	return pb->ptr == p;
+	return block->ptr == p;
    }
 
-   return FALSE;
+   return 0;
 }
 
 static void copy_block(s_block_ptr src, s_block_ptr dst)
@@ -132,44 +109,38 @@ static void copy_block(s_block_ptr src, s_block_ptr dst)
     ddata[i] = sdata[i];
 }
 
-/*********************** Interfaces ***********************/
 void* mm_malloc(size_t size)
 {
 #ifdef MM_USE_STUBS
     return calloc(1, size);
 #else
-    /* Align the requested size */
     size_t s = align4(size);    
-    s_block_ptr pb;
-
-    /* no block is allocated yet */
+    s_block_ptr block;
     if (base == NULL) 
     {
-       pb = extend_heap(s);
-       if (pb == NULL)
+       block = extend_heap(s);
+       if (block == NULL)
           return NULL;
-       base = pb;
+       base = block;
     }
-    /* else already allocated blocks */
     else 
     {
-       /* Find first fitting block */
-       pb = find_block(s);
-       if (pb == NULL)
+       block = find_block(s);
+       if (block == NULL)
         {
-          pb = extend_heap(s);
-          if (pb == NULL)
+          block = extend_heap(s);
+          if (block == NULL)
             return NULL;
         }
        else
         {
-          if (pb->size - s >= S_BLOCK_SIZE + 4)
-            split_block(pb, s);
+          if (block->size - s >= S_BLOCK_SIZE + 4)
+            split_block(block, s);
         }
     }
         
-    pb->free = FALSE;
-    return pb->ptr;
+    block->free = 0;
+    return block->ptr;
 #endif
 }
 
@@ -180,43 +151,38 @@ void* mm_realloc(void* ptr, size_t size)
 #else
     size_t s;
     void *newp;
-    s_block_ptr pb, new;
-    /* exclude some special conditions */
+    s_block_ptr block, new;
     if (ptr == NULL)
         return mm_malloc(size);
     
-    if ((pb=get_block(ptr)) != NULL)
+    if ((block=get_block(ptr)) != NULL)
     {
         s = align4(size);
-        if (pb->size >= s)
+        if (block->size >= s)
          {
-           /* If space is enough, try to split current block */
-           if (pb->size - s >= (BLOCK_SIZE + 4))
-             split_block(pb, s);
+           if (block->size - s >= (BLOCK_SIZE + 4))
+             split_block(block, s);
          }
     }
     else 
     {
-        /* Try fusion with next if possible */
-        if (pb->next && pb->next->free
-            && (pb->size + BLOCK_SIZE + pb->next->size) >= s)
+        if (block->next && block->next->free && (block->size + BLOCK_SIZE + block->next->size) >= s)
         {
-           fusion_block(pb);
-           if (pb->size - s >= BLOCK_SIZE + 4)
-             split_block(pb, s);
+           fusion_block(block);
+           if (block->size - s >= BLOCK_SIZE + 4)
+             split_block(block, s);
         }
         else
         {
-           /* no way to get enough space on current node, have to malloc new memory */
            newp = mm_malloc(s);
            if (newp == NULL)
                return NULL;
            new = get_block(newp);
-           copy_block(pb, new);
-           mm_free(pb);
+           copy_block(block, new);
+           mm_free(block);
            return (newp);  
         }
-        return (pb);
+        return (block);
     } 
     return (NULL);
 #endif
@@ -226,28 +192,25 @@ void mm_free(void* ptr)
 #ifdef MM_USE_STUBS
     free(ptr);
 #else
-    /* #error Not implemented. */
-    s_block_ptr pb;
-    /* If the pointer ptr is valid and get a non-NULL block address */
-    if ((pb=get_block(ptr)) != NULL)
+    s_block_ptr block;
+    if ((block=get_block(ptr)) != NULL)
     {
-       pb->free = TRUE;  
-       /* Step backward and fusion two blocks */
-       if(pb->prev && pb->prev->free)
-         fusion_block(pb->prev);
-       /* Also try fusion with the next block */
-       if(pb->next)
-         fusion_block(pb);
-       /* Else we are the last pointer, free the end of heap   */
+      block->free = 1;  
+       if(block->prev && block->prev->free)
+         fusion_block(block->prev);
+       if(block->next)
+         fusion_block(block);
        else
        {
-          /* If we are also the head pointer, no more block    */
-          if (pb->prev == NULL)
-              base = NULL;
-          /* Else release the end of heap                      */
-          else
-              pb->prev->next = NULL;     
-          brk(pb);
+ if (block->prev == NULL)
+{
+  base = NULL;
+}
+  else
+{        
+ block->prev->next = NULL;
+}   
+          brk(block);
        }
     }
     
